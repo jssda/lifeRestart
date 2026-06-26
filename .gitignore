@@ -111,3 +111,6 @@ __localStorage.json
 
 template/public
 public/data
+
+# opencode internal runtime
+.omo/
