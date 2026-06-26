@@ -4,9 +4,39 @@ import { dirname } from 'path'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 import { readFile } from 'fs/promises'
+import { existsSync } from 'fs'
 import Life from '../src/modules/life.js'
+import LLMSummary from '../src/modules/llmSummary.js'
 import $lang from '../src/i18n/zh-cn.js'
 globalThis.$lang = $lang
+
+// 加载 .env 文件（项目根目录或启动目录下的 .env）
+async function loadDotEnv() {
+    const envPaths = [
+        `${__dirname}/../.env`,   // 项目根目录
+        `${process.cwd()}/.env`,  // 启动目录
+    ];
+    for (const envPath of envPaths) {
+        if (existsSync(envPath)) {
+            const content = await readFile(envPath, 'utf-8');
+            for (const line of content.split('\n')) {
+                const match = line.match(/^\s*(LLM_BASE_URL|LLM_API_KEY|LLM_MODEL_ID)\s*=\s*"?([^"]*)"?\s*$/);
+                if (match) {
+                    const [, key, value] = match;
+                    if (key === 'LLM_BASE_URL') LLMSummary.cliConfig.baseUrl = value;
+                    if (key === 'LLM_API_KEY') LLMSummary.cliConfig.apiKey = value;
+                    if (key === 'LLM_MODEL_ID') LLMSummary.cliConfig.modelId = value;
+                }
+            }
+            break;  // 只加载第一个找到的 .env
+        }
+    }
+    // 环境变量优先级高于 .env 文件
+    if (process.env.LLM_BASE_URL) LLMSummary.cliConfig.baseUrl = process.env.LLM_BASE_URL;
+    if (process.env.LLM_API_KEY) LLMSummary.cliConfig.apiKey = process.env.LLM_API_KEY;
+    if (process.env.LLM_MODEL_ID) LLMSummary.cliConfig.modelId = process.env.LLM_MODEL_ID;
+}
+loadDotEnv();
 
 globalThis.json = async fileName =>
     JSON.parse(await readFile(`${__dirname}/../public/data/${fileName}.json`))
@@ -258,8 +288,8 @@ class App {
     io(input, output, exit) {
         this.#output = output
         this.#exit = exit
-        input(command => {
-            const ret = this.repl(command)
+        input(async command => {
+            const ret = await this.repl(command)
             if (!ret) return
             if (typeof ret == 'string') return this.output(ret, true)
             if (Array.isArray(ret)) return this.output(...ret)
@@ -327,6 +357,11 @@ class App {
             case 'exit':
             case '/exit':
                 return this.exit(0)
+
+            case 'st':
+            case 'story':
+            case '/story':
+                return this.generateStory()
 
             case '?':
             case 'h':
@@ -501,6 +536,10 @@ class App {
     auto
     /auto           自动播放        /auto
 
+    st
+    story
+    /story          生成人生故事    /story
+
     ?
     h
     help
@@ -512,6 +551,36 @@ class App {
     auto(arg) {
         this.#auto = arg != 'off'
         return this.next(true)
+    }
+
+    async generateStory() {
+        if (!LLMSummary.isConfigured()) {
+            return '请先配置 LLM：\n' +
+                   '  在项目根目录创建 .env 文件：\n' +
+                   '    LLM_BASE_URL=https://api.deepseek.com\n' +
+                   '    LLM_API_KEY=your-api-key\n' +
+                   '    LLM_MODEL_ID=deepseek-chat\n' +
+                   '  或设置环境变量后启动';
+        }
+        if (this.#step !== this.Steps.SUMMARY) {
+            return '只有在人生总结阶段才能生成人生故事';
+        }
+
+        this.output('\n正在生成人生故事...\n');
+
+        try {
+            const fullText = await LLMSummary.streamStoryForCLI(
+                this.#life.trajectoryHistory,
+                this.#life.summary,
+                Array.from(this.#talentSelected),
+                (chunk) => this.output(chunk)
+            );
+            this.output('\n\n故事生成完毕。键入 /next 开始新人生\n', true);
+            return fullText;
+        } catch (e) {
+            this.output(`\n生成失败: ${e.message}\n`, true);
+            return `生成失败: ${e.message}`;
+        }
     }
 
     remake() {

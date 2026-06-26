@@ -41,6 +41,7 @@ class Life {
     #defaultPropertys;
     #specialThanks;
     #initialData;
+    #trajectoryHistory = [];
 
     async initial(i18nLoad, commonLoad) {
         const [age, talents, events, achievements, characters, specialThanks] = await Promise.all([
@@ -117,6 +118,7 @@ class Life {
         for(const key in allocation) {
             this.#initialData[key] = util.clone(allocation[key]);
         }
+        this.#trajectoryHistory = [];
         this.#property.restart(this.#initialData);
         this.doTalent()
         this.#property.restartLastStep();
@@ -140,6 +142,7 @@ class Life {
         const isEnd = this.#property.isEnd();
 
         const content = [talentContent, eventContent].flat();
+        this.#trajectoryHistory.push({ age, content });
         this.#achievement.achieve(this.AchievementOpportunity.TRAJECTORY);
         return { age, content, isEnd };
     }
@@ -322,6 +325,7 @@ class Life {
         this.#achievement.achieve(this.AchievementOpportunity.END);
     }
     get specialThanks() { return this.#specialThanks; }
+    get trajectoryHistory() { return this.#trajectoryHistory; }
 }
 
 export default Life;

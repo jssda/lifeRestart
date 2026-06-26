@@ -1,3 +1,6 @@
+import LLMSummary from '../../../modules/llmSummary.js';
+import { showStoryOverlay, showSettingsOverlay } from '../llmStoryView.js';
+
 export default class CyberSummary extends ui.view.CyberTheme.CyberSummaryUI {
     constructor() {
         super();
@@ -7,6 +10,8 @@ export default class CyberSummary extends ui.view.CyberTheme.CyberSummaryUI {
 
     #selectedTalent;
     #enableExtend;
+    #talents;
+    #domBtns = [];
 
     onAgain() {
         core.talentExtend(this.#selectedTalent);
@@ -14,9 +19,31 @@ export default class CyberSummary extends ui.view.CyberTheme.CyberSummaryUI {
         $ui.switchView(UI.pages.MAIN);
     }
 
+    onGenerateStory() {
+        if (!LLMSummary.isConfigured()) {
+            $$event('message', ['M_LLMNotConfigured']);
+            showSettingsOverlay();
+            return;
+        }
+        showStoryOverlay({
+            talents: this.#talents,
+            trajectoryHistory: core.trajectoryHistory,
+            summary: core.summary,
+            enableExtend: this.#enableExtend,
+        });
+    }
+
+    onLLMSettings() {
+        showSettingsOverlay();
+    }
+
     init({talents, enableExtend}) {
         const {summary, lastExtendTalent} = core;
         this.#enableExtend = enableExtend;
+        this.#talents = talents;
+
+        // 添加 DOM 按钮
+        this.#addDomButtons();
 
         const gradeFilters = $ui.common.filter;
         const gradeColors = $ui.common.grade;
@@ -132,5 +159,45 @@ export default class CyberSummary extends ui.view.CyberTheme.CyberSummaryUI {
         }
 
         this.listSelectedTalents.refresh();
+    }
+
+    #addDomButtons() {
+        this.#domBtns.forEach(b => b.remove());
+        this.#domBtns = [];
+
+        const btnStory = document.createElement('button');
+        btnStory.textContent = $lang.UI_Generate_Story;
+        btnStory.style.cssText = `
+            position: fixed; top: 15px; left: 15px; z-index: 9999;
+            background: rgba(85,255,254,0.15); color: #55fffe;
+            border: 1px solid #55fffe; padding: 8px 16px; font-size: 14px;
+            border-radius: 6px; cursor: pointer; font-family: SimHei, 'Microsoft YaHei', sans-serif;
+            backdrop-filter: blur(4px); transition: all 0.2s;
+        `;
+        btnStory.onmouseover = () => btnStory.style.background = 'rgba(85,255,254,0.3)';
+        btnStory.onmouseout = () => btnStory.style.background = 'rgba(85,255,254,0.15)';
+        btnStory.onclick = () => this.onGenerateStory();
+        document.body.appendChild(btnStory);
+        this.#domBtns.push(btnStory);
+
+        const btnSettings = document.createElement('button');
+        btnSettings.textContent = $lang.UI_LLM_Settings;
+        btnSettings.style.cssText = `
+            position: fixed; top: 15px; right: 15px; z-index: 9999;
+            background: rgba(177,124,255,0.15); color: #b17cff; border: 1px solid #b17cff;
+            padding: 8px 16px; font-size: 14px; border-radius: 6px; cursor: pointer;
+            font-family: SimHei, 'Microsoft YaHei', sans-serif; backdrop-filter: blur(4px);
+            transition: all 0.2s;
+        `;
+        btnSettings.onmouseover = () => btnSettings.style.background = 'rgba(177,124,255,0.3)';
+        btnSettings.onmouseout = () => btnSettings.style.background = 'rgba(177,124,255,0.15)';
+        btnSettings.onclick = () => this.onLLMSettings();
+        document.body.appendChild(btnSettings);
+        this.#domBtns.push(btnSettings);
+    }
+
+    close() {
+        this.#domBtns.forEach(b => b.remove());
+        this.#domBtns = [];
     }
 }

@@ -1,3 +1,5 @@
+import { showSettingsOverlay } from '../llmStoryView.js';
+
 export default class CyberMain extends ui.view.CyberTheme.CyberMainUI {
     constructor() {
         super();
@@ -29,10 +31,37 @@ export default class CyberMain extends ui.view.CyberTheme.CyberMainUI {
         ]
     }
 
+    #llmSettingsBtn = null;
+
     init() {
         this.banner.visible =
         this.btnDiscord.visible =
         this.btnAchievement.visible =
         this.btnThanks.visible = !!core.times;
+
+        // 添加 AI 设置 DOM 按钮
+        if (!this.#llmSettingsBtn) {
+            const btn = document.createElement('button');
+            btn.textContent = $lang.UI_LLM_Settings;
+            btn.style.cssText = `
+                position: fixed; top: 15px; right: 15px; z-index: 9999;
+                background: rgba(85,255,254,0.15); color: #55fffe; border: 1px solid #55fffe;
+                padding: 8px 16px; font-size: 14px; border-radius: 6px;
+                cursor: pointer; font-family: SimHei, 'Microsoft YaHei', sans-serif;
+                backdrop-filter: blur(4px); transition: all 0.2s;
+            `;
+            btn.onmouseover = () => { btn.style.background = 'rgba(85,255,254,0.3)'; };
+            btn.onmouseout = () => { btn.style.background = 'rgba(85,255,254,0.15)'; };
+            btn.onclick = () => showSettingsOverlay();
+            document.body.appendChild(btn);
+            this.#llmSettingsBtn = btn;
+        }
+        this.#llmSettingsBtn.style.display = 'block';
+    }
+
+    close() {
+        if (this.#llmSettingsBtn) {
+            this.#llmSettingsBtn.style.display = 'none';
+        }
     }
 }
