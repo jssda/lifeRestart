@@ -30,18 +30,50 @@ export default class LLMSummary {
     }
 
     static buildPrompt(trajectoryHistory, summary, talents) {
-        const lines = trajectoryHistory.map(({age, content}) => {
+        const PROP_LABELS = {
+            CHR: '颜值', INT: '智力', STR: '体质',
+            MNY: '家境', SPR: '快乐', LIF: '生命',
+        };
+
+        const formatEffect = (eff) => {
+            if (!eff) return '';
+            const parts = [];
+            for (const k in eff) {
+                const label = PROP_LABELS[k] || (k === 'RDM' ? '随机属性' : k);
+                const v = eff[k];
+                parts.push(`${label}${v > 0 ? '+' : ''}${v}`);
+            }
+            return parts.join('，');
+        };
+
+        const formatProperty = (p) => {
+            if (!p) return '';
+            return `颜值${p.CHR}/智力${p.INT}/体质${p.STR}/家境${p.MNY}/快乐${p.SPR}`;
+        };
+
+        const initialProperty = formatProperty(trajectoryHistory[0]?.property);
+
+        const lines = trajectoryHistory.map(({age, content, property}) => {
             const events = content.map(c => {
-                if (c.type === 'TLT') return `天赋【${c.name}】发动：${c.description}`;
-                if (c.type === 'EVT') return c.description + (c.postEvent ? `\n${c.postEvent}` : '');
-                return c.description || '';
+                const change = formatEffect(c.effect);
+                const base = c.type === 'TLT'
+                    ? `天赋【${c.name}】发动：${c.description}`
+                    : c.description + (c.postEvent ? `\n${c.postEvent}` : '');
+                return change ? `${base}（${change}）` : base;
             }).join('；');
-            return `${age}岁：${events}`;
+            const hasEffect = content.some(c => c.effect && Object.keys(c.effect).length > 0);
+            const propStr = hasEffect ? `[${formatProperty(property)}] ` : '';
+            return `${age}岁：${propStr}${events}`;
         });
 
-        const talentNames = Array.isArray(talents)
-            ? talents.map(t => typeof t === 'object' ? t.name : t).join('、')
-            : '';
+        const talentList = Array.isArray(talents) && talents.length
+            ? talents.map(t => {
+                if (typeof t === 'object' && t) {
+                    return `- 【${t.name}】${t.description || ''}`;
+                }
+                return `- 【${t}】`;
+            }).join('\n')
+            : '无';
 
         const pt = summary;
         const props = [
@@ -54,23 +86,31 @@ export default class LLMSummary {
             `总评${pt.SUM.value}（${pt.SUM.judge}）`,
         ].join('，');
 
-        return `你是一位文学大师，擅长以细腻笔触书写人生故事。
+        return `你是一位故事讲述者，现在要根据下面一个人的一生经历，用第二人称「你」扩写成一段连贯的人生故事。
 
-以下是一个人的一生经历，请根据这些经历，写一篇不少于5000字的人生故事。
+以下素材是「你」的一生：初始属性、拥有的天赋、每年经历的事件、事件发生前的属性状态、以及每个事件带来的属性变化。请挑出其中值得讲的经历扩写成有画面感的故事，按年龄顺序自然推进。
+
 要求：
-1. 以第三人称叙事，文笔优美，有情感深度
-2. 按人生阶段自然展开：幼年、少年、青年、中年、老年
-3. 对关键事件进行详细描写和情感解读，不要简单罗列
-4. 体现人物性格、命运转折、内心挣扎
-5. 结尾要有哲理性的反思
+1. 全程用「你」称呼主角，像在给主角讲述他自己的生平
+2. 挑有转折、有变化、离谱或关键的事件重点扩写成丰满的故事；平淡无奇的年份直接跳过或一笔带过，不要逐年流水账
+3. 自然融入每个事件带来的属性变化（例如颜值涨了、快乐跌了），让变化成为故事的一部分，不要生硬标注
+4. 适度体现事件之间的因果和影响，但不必强行关联
+5. 不要评判打分，不要总结评语，只讲故事
+6. 篇幅适中，重点处写丰满，平淡处别注水
 
-这个人的一生经历如下：
-天赋：${talentNames}
-人生轨迹：
+「你」的素材如下：
+
+初始属性：${initialProperty}
+
+天赋：
+${talentList}
+
+人生轨迹（年龄：[事件前属性] 事件 / 属性变化）：
 ${lines.join('\n')}
+
 人生总评：${props}
 
-请开始书写这个人的人生故事：`;
+请开始讲述「你」的故事：`;
     }
 
     // Web 版：流式调用，返回 AsyncGenerator
@@ -92,7 +132,7 @@ ${lines.join('\n')}
                     messages: [{ role: 'user', content: prompt }],
                     stream: true,
                     max_tokens: 8000,
-                    temperature: 0.8,
+                    temperature: 0.9,
                     // 关闭思考模式，避免用户长时间等待
                     enable_thinking: false,
                     thinking: { type: 'disabled' },
@@ -152,7 +192,7 @@ ${lines.join('\n')}
                     messages: [{ role: 'user', content: prompt }],
                     stream: true,
                     max_tokens: 8000,
-                    temperature: 0.8,
+                    temperature: 0.9,
                     enable_thinking: false,
                     thinking: { type: 'disabled' },
                     chat_template_kwargs: { enable_thinking: false },

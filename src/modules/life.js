@@ -134,15 +134,16 @@ class Life {
     }
 
     next() {
-        const {age, event, talent} = this.#property.ageNext();
+        const { age, event, talent } = this.#property.ageNext();
 
+        const property = this.#property.getPropertys();
         const talentContent = this.doTalent(talent);
         const eventContent = this.doEvent(this.random(event));
 
         const isEnd = this.#property.isEnd();
 
         const content = [talentContent, eventContent].flat();
-        this.#trajectoryHistory.push({ age, content });
+        this.#trajectoryHistory.push({ age, content, property });
         this.#achievement.achieve(this.AchievementOpportunity.TRAJECTORY);
         return { age, content, isEnd };
     }
@@ -178,6 +179,7 @@ class Life {
                 name,
                 grade,
                 description: this.format(description),
+                effect: effect || null,
             })
             if(!effect) continue;
             this.#property.effect(effect);
@@ -194,6 +196,7 @@ class Life {
             description: this.format(description),
             postEvent: postEvent && this.format(postEvent),
             grade,
+            effect: effect || null,
         }
         if(next) return [content, this.doEvent(next)].flat();
         return [content];
